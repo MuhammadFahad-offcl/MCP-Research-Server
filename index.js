@@ -76,6 +76,7 @@ app.use((err, _req, res, _next) => {
 });
 
 // ─── START ─────────────────────────────────────────────────────────────────
+// Vercel uses the exported app; local dev uses app.listen()
 if (process.env.VERCEL !== "1") {
   app.listen(PORT, () => {
     console.log(`\n  MCP Research Server running on port ${PORT}`);
@@ -86,4 +87,3 @@ if (process.env.VERCEL !== "1") {
 }
 
 module.exports = app;
-});
