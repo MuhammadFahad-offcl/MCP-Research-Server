@@ -76,9 +76,14 @@ app.use((err, _req, res, _next) => {
 });
 
 // ─── START ─────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n  MCP Research Server running on port ${PORT}`);
-  console.log(`  Health check: http://localhost:${PORT}/health`);
-  console.log(`  Auth: ${process.env.API_KEY ? "ENABLED" : "DISABLED (dev mode)"}`);
-  console.log(`  Endpoints: 10 tools under /tools/*\n`);
+if (process.env.VERCEL !== "1") {
+  app.listen(PORT, () => {
+    console.log(`\n  MCP Research Server running on port ${PORT}`);
+    console.log(`  Health check: http://localhost:${PORT}/health`);
+    console.log(`  Auth: ${process.env.API_KEY ? "ENABLED" : "DISABLED (dev mode)"}`);
+    console.log(`  Endpoints: 10 tools under /tools/*\n`);
+  });
+}
+
+module.exports = app;
 });
