@@ -4,14 +4,20 @@
  * All free — no external API keys required.
  */
 const { Router } = require("express");
-const { default: YahooFinance } = require("yahoo-finance2");
 const https = require("https");
 const { analyzeSentiment } = require("../lib/sentiment");
 
 const router = Router();
 
-// yahoo-finance2 v4 requires instantiation
-const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+// Lazy-load yahoo-finance2 (avoids cold-start crash on Vercel)
+let _yf = null;
+function getYF() {
+  if (!_yf) {
+    const { default: YahooFinance } = require("yahoo-finance2");
+    _yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+  }
+  return _yf;
+}
 
 const SEC_USER_AGENT = `MCP-Research-Server/1.0 (${process.env.SEC_EDGAR_EMAIL || "research@example.com"})`;
 
@@ -23,7 +29,7 @@ router.post("/search_financial_news", async (req, res) => {
     if (!searchTerm) return res.status(400).json({ error: "query or ticker is required" });
 
     // Use Yahoo Finance search for news
-    const searchResult = await yahooFinance.search(searchTerm, {
+    const searchResult = await getYF().search(searchTerm, {
       newsCount: Math.min(limit, 20),
       quotesCount: 0,
     });
@@ -43,7 +49,7 @@ router.post("/search_financial_news", async (req, res) => {
     let companyNews = [];
     if (ticker) {
       try {
-        const quote = await yahooFinance.quote(ticker.toUpperCase());
+        const quote = await getYF().quote(ticker.toUpperCase());
         if (quote) {
           companyNews.push({
             headline: `${quote.shortName || ticker} trading at $${quote.regularMarketPrice} (${quote.regularMarketChangePercent > 0 ? "+" : ""}${round(quote.regularMarketChangePercent)}%)`,
@@ -78,7 +84,7 @@ router.post("/get_market_sentiment", async (req, res) => {
     if (!ticker) return res.status(400).json({ error: "ticker is required" });
 
     // Gather headlines from Yahoo Finance
-    const searchResult = await yahooFinance.search(ticker.toUpperCase(), {
+    const searchResult = await getYF().search(ticker.toUpperCase(), {
       newsCount: Math.min(source_count, 30),
       quotesCount: 0,
     });
@@ -90,7 +96,7 @@ router.post("/get_market_sentiment", async (req, res) => {
 
     // Get current price context for divergence detection
     try {
-      const quote = await yahooFinance.quote(ticker.toUpperCase());
+      const quote = await getYF().quote(ticker.toUpperCase());
       const priceDirection = quote.regularMarketChangePercent > 0 ? "BULLISH" : "BEARISH";
       sentiment.sentiment_vs_price_divergence =
         (sentiment.overall === "BULLISH" && priceDirection === "BEARISH") ||
@@ -175,7 +181,7 @@ router.post("/get_earnings_calendar", async (req, res) => {
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: "ticker is required" });
 
-    const summary = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
+    const summary = await getYF().quoteSummary(ticker.toUpperCase(), {
       modules: ["calendarEvents", "earningsTrend", "earnings"],
     });
 
@@ -243,7 +249,7 @@ router.post("/web_search", async (req, res) => {
     if (!query) return res.status(400).json({ error: "query is required" });
 
     // Use Yahoo Finance search as a financial web search proxy
-    const searchResult = await yahooFinance.search(query, {
+    const searchResult = await getYF().search(query, {
       newsCount: max_results,
       quotesCount: 5,
     });

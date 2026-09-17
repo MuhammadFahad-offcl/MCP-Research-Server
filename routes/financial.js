@@ -4,13 +4,19 @@
  * Technical indicators: technicalindicators library
  */
 const { Router } = require("express");
-const { default: YahooFinance } = require("yahoo-finance2");
 const { calculateIndicators } = require("../lib/indicators");
 
 const router = Router();
 
-// yahoo-finance2 v4 requires instantiation
-const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+// Lazy-load yahoo-finance2 (avoids cold-start crash on Vercel)
+let _yf = null;
+function getYF() {
+  if (!_yf) {
+    const { default: YahooFinance } = require("yahoo-finance2");
+    _yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+  }
+  return _yf;
+}
 
 // ─── 1. GET STOCK QUOTE ────────────────────────────────────────────────────
 router.post("/get_stock_quote", async (req, res) => {
@@ -18,7 +24,7 @@ router.post("/get_stock_quote", async (req, res) => {
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: "ticker is required" });
 
-    const quote = await yahooFinance.quote(ticker.toUpperCase());
+    const quote = await getYF().quote(ticker.toUpperCase());
 
     res.json({
       ticker: quote.symbol,
@@ -78,7 +84,7 @@ router.post("/get_historical_candles", async (req, res) => {
     };
     const yInterval = intervalMap[interval] || "1d";
 
-    const history = await yahooFinance.historical(ticker.toUpperCase(), {
+    const history = await getYF().historical(ticker.toUpperCase(), {
       period1,
       interval: yInterval,
     });
@@ -110,7 +116,7 @@ router.post("/get_fundamental_metrics", async (req, res) => {
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: "ticker is required" });
 
-    const summary = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
+    const summary = await getYF().quoteSummary(ticker.toUpperCase(), {
       modules: [
         "financialData",
         "defaultKeyStatistics",
@@ -218,7 +224,7 @@ router.post("/get_technical_indicators", async (req, res) => {
           : 30;
     const period1 = new Date(Date.now() - lookback * 24 * 60 * 60 * 1000);
 
-    const history = await yahooFinance.historical(ticker.toUpperCase(), {
+    const history = await getYF().historical(ticker.toUpperCase(), {
       period1,
       interval: yInterval,
     });
@@ -255,7 +261,7 @@ router.post("/get_company_profile", async (req, res) => {
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: "ticker is required" });
 
-    const summary = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
+    const summary = await getYF().quoteSummary(ticker.toUpperCase(), {
       modules: ["assetProfile", "summaryProfile", "price", "summaryDetail"],
     });
 
